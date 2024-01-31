@@ -1,0 +1,109 @@
+<?php
+
+/**
+ * @file
+ * HW CDS Content Permision module.
+ * 
+ * @author Mike Chaplin, Circle Interactive
+ * @author Dave Jenkins, Circle Interactive
+ *
+ * Defines and implements permissions, e.g. "edit local reports_library content",
+ * for editing nodes of type Enquiry Feedback, Have Your Say & Reports Library, but only if the node
+ * belongs to the same Local Healthwatch as the user.
+ * This check is based on the field field_local_healthwatch on the user & on the node.
+ */
+ 
+ use Drupal\Core\Url;
+ use Drupal\Core\Access\AccessResult;
+ use Drupal\Core\Entity\EntityInterface;
+ use Drupal\Core\Field\EntityReferenceFieldItemList;
+ use Drupal\Core\Session\AccountInterface;
+ use Drupal\user\Entity\User;
+
+define('CI_LHW_FIELD', 'field_local_healthwatch');
+define('CI_LHW_FIELD_USER', 'field_local_healthwatch_user');
+
+
+/**
+ * Implements hook_ENTITY_TYPE_access().
+ * https://api.drupal.org/api/drupal/core%21lib%21Drupal%21Core%21Entity%21entity.api.php/function/hook_ENTITY_TYPE_access/9.4.x
+ */
+function ci_content_permission_node_access(EntityInterface $entity, $operation, AccountInterface $account) {
+
+  $node_type = $entity->getType();
+
+  /*
+   * For updating Enquiry Feedback, Have Your Say & Reports Library nodes, check the permission
+   * 'edit local <node type> content'.
+   */
+  if ($operation == 'update' && in_array($node_type, ['feedback_signposting_wizard', 'have_your_say', 'reports_library'])) {
+    if ($account->hasPermission('edit local ' . $node_type . ' content')) {
+      if (_ci_content_permission_same_lhw($account, $entity, $ids)) {
+        return AccessResult::allowed();
+      }
+      else {
+        \Drupal::logger('ci_content_permission')->info('edit local %type content: not allowed for node %nid, operation %op. User LHW: %user_lhw, node LHW: %node_lhw.', [
+          '%type' => $entity->getType(),
+          '%nid' => $entity->id(),
+          '%op' => $operation,
+          '%user_lhw' => implode(', ', $ids['user_lhw']),
+          '%node_lhw' => implode(', ', $ids['node_lhw']),
+        ]);
+        return AccessResult::neutral();
+      }
+    }
+  }
+
+  return AccessResult::neutral();
+}
+
+/**
+ * Helper: check whether a user and a node belong to the same Local Healthwatch (LHW),
+ * based on the values of the Local Healthwatch entity reference field on user & node.
+ *
+ * Note: this function is also used in module ci_safeguarding.
+ *
+ * @param \Drupal\Core\Session\AccountInterface $account
+ *   The user account to check.
+ * @param \Drupal\Core\Entity\EntityInterface $entity
+ *   The node to check.
+ * @param array $ids
+ *   Reference to an array where the function will store the LHW ids found.
+ *
+ * @return bool
+ *   TRUE if the user and node share a Local Healthwatch field value, FALSE otherwise.
+ */
+function _ci_content_permission_same_lhw(AccountInterface $account, EntityInterface $entity, ?array &$ids): bool {
+  $user = User::load($account->id());
+  $user_entity_reference_list = $user->get(CI_LHW_FIELD_USER);
+  $ids['user_lhw'] = _ci_content_permission_get_referenced_ids($user_entity_reference_list);
+
+  $node_entity_reference_list = $entity->get(CI_LHW_FIELD);
+  $ids['node_lhw'] = _ci_content_permission_get_referenced_ids($node_entity_reference_list);
+
+  return !empty(array_intersect($ids['node_lhw'], $ids['user_lhw']));
+}
+
+/**
+ * Helper: return the ids of the referenced items in an entity reference field item list.
+ *
+ * @param \Drupal\Core\Field\EntityReferenceFieldItemList $list
+ *   The entity reference field item list.
+ *
+ * @return array
+ *   The ids of the referenced items.
+ */
+function _ci_content_permission_get_referenced_ids(?EntityReferenceFieldItemList $list): array {
+  $item_ids = [];
+  if ($list) {
+    foreach ($list as $entity_reference_item) {
+      $value = $entity_reference_item->getValue();
+      if (!empty($value['target_id'])) {
+        $item_ids[] = $value['target_id'];
+      }
+    }
+  }
+
+  return $item_ids;
+}
+

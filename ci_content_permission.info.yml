@@ -1,0 +1,5 @@
+name: 'Content permission'
+description: 'Custom module to control access to certain nodes eg Reports Library'
+package: Circle
+type: module
+core_version_requirement: ^8 || ^9

@@ -1,0 +1,10 @@
+edit local have_your_say content:
+  title: 'Edit local <em>Have Your Say</em> content'
+  description: "Edit Have Your Say nodes with the same local healthwatch values as the user's account"
+edit local feedback_signposting_wizard content:
+  title: 'Edit local <em>Enquiry Feedback</em> content'
+  description: "Edit Enquiry Feedback nodes with the same local healthwatch values as the user's account"
+edit local reports_library content:
+  title: 'Edit local <em>Reports Library</em> content'
+  description: "Edit Reports Library nodes with the same local healthwatch values as the user's account"
+
